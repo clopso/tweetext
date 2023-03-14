@@ -16,6 +16,51 @@ from requests_futures.sessions import FuturesSession
 import bs4
 from concurrent.futures import as_completed
 
+from itertools import cycle
+from shutil import get_terminal_size
+from threading import Thread
+
+class Loader:
+    def __init__(self, desc="Loading...", end="Done!", timeout=0.1):
+        """
+        A loader-like context manager
+        Args:
+            desc (str, optional): The loader's description. Defaults to "Loading...".
+            end (str, optional): Final print. Defaults to "Done!".
+            timeout (float, optional): Sleep time between prints. Defaults to 0.1.
+        """
+        self.desc = desc
+        self.end = end
+        self.timeout = timeout
+
+        self._thread = Thread(target=self._animate, daemon=True)
+        self.steps = ["⢿", "⣻", "⣽", "⣾", "⣷", "⣯", "⣟", "⡿"]
+        self.done = False
+
+    def start(self):
+        self._thread.start()
+        return self
+
+    def _animate(self):
+        for c in cycle(self.steps):
+            if self.done:
+                break
+            print(f"\r{self.desc} {c}", flush=True, end="")
+            sleep(self.timeout)
+
+    def __enter__(self):
+        self.start()
+
+    def stop(self):
+        self.done = True
+        cols = get_terminal_size((80, 20)).columns
+        print("\r" + " " * cols, end="", flush=True)
+        print(f"\r{self.end}", flush=True)
+
+    def __exit__(self, exc_type, exc_value, tb):
+        # handle exceptions with those variables ^
+        self.stop()
+
 # checks the status of a given url
 async def checkStatus(url, session: ClientSession, sem: asyncio.Semaphore, proxy_server):
     async with sem:
@@ -150,10 +195,15 @@ directory.mkdir(exist_ok=True)
 f = open(f"{account_name}/{account_name}_tweets.txt", 'w')
 f.close()
 
+
 with FuturesSession(max_workers=5) as session:
-    for number, url in tqdm(wayback_url_dict.items(), position=0, leave=True):
+    loader = Loader("Loading tweets...", "Done!", 0.1).start()
+    for number, url in tqdm(wayback_url_dict.items(), position=0, leave=True, total=len(wayback_url_dict)):
         futures_list.append(session.get(url))
-for future in as_completed(futures_list):
+loader.stop()
+sleep(1)
+print("Downloading tweets...")
+for future in tqdm(as_completed(futures_list), position=0, leave=True, total=len(futures_list)):
     try:
         result = future.result()
         # Take the results and put them in variables
@@ -166,6 +216,8 @@ for future in as_completed(futures_list):
         pass
     except ConnectionError:
         print('Connection error occurred while fetching tweet text!')
+    except Exception:  # não pega MemoryError, SystemExit, KeyboardInterrupt
+        pass
 
 print(f"\nA text file ({account_name}_text.txt) is saved, which lists all URLs for the deleted Tweets and "
     f"their text, has been saved.\nYou can find it inside the folder "
