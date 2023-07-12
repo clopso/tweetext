@@ -1,3 +1,5 @@
+# July 2023 - Recent changes in the Twitter platform now require a login to view tweets, causing this tool to malfunction
+
 # Tweetext: Find old tweets with the Wayback Machine
 
 Want to find old tweets and don't know how? You found the solution!
